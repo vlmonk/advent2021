@@ -8,12 +8,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|line| line.parse::<i32>())
         .collect::<Result<Vec<_>, _>>()?;
 
-    let result_a = (1..numbers.len())
-        .map(|i| (numbers[i - 1], numbers[i]))
-        .filter(|(a, b)| b > a)
-        .count();
-
-    dbg!(result_a);
+    let result_a = &numbers[..].windows(2).filter(|w| w[1] > w[0]).count();
 
     let window = (2..numbers.len())
         .map(|i| numbers[i - 2] + numbers[i - 1] + numbers[i])
@@ -24,6 +19,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         .filter(|(a, b)| b > a)
         .count();
 
-    dbg!(result_b);
+    println!("Task A: {}\nTask B: {}", result_a, result_b);
     Ok(())
 }
