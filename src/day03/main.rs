@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::error::Error;
+use std::fmt;
 
 #[derive(Debug, PartialEq)]
 enum Bit {
@@ -10,6 +11,17 @@ enum Bit {
 impl Bit {
     pub fn one(&self) -> bool {
         *self == Bit::One
+    }
+
+    pub fn zero(&self) -> bool {
+        *self == Bit::Zero
+    }
+
+    pub fn to_char(&self) -> char {
+        match self {
+            Self::Zero => '0',
+            Self::One => '1',
+        }
     }
 }
 
@@ -25,7 +37,7 @@ impl TryFrom<char> for Bit {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 struct BitRow {
     size: usize,
     bits: Vec<Bit>,
@@ -65,6 +77,20 @@ impl BitRow {
 
     pub fn bits(&self) -> impl Iterator<Item = &Bit> {
         self.bits.iter()
+    }
+
+    pub fn at(&self, position: usize) -> &Bit {
+        &self.bits[position]
+    }
+}
+
+impl fmt::Debug for BitRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let bits = self.bits().map(|b| b.to_char()).collect::<String>();
+        f.write_str(&format!(
+            "BitRow {{ size: {}, bits: {} }}",
+            self.size, &bits
+        ))
     }
 }
 
@@ -144,6 +170,25 @@ impl Common {
     }
 }
 
+fn find_value<'a, F>(input: &[&'a BitRow], position: usize, predicate: F) -> &'a BitRow
+where
+    F: Fn(usize, usize, &Bit) -> bool,
+{
+    let ones = input.iter().filter(|row| row.at(position).one()).count();
+    let zeros = input.len() - ones;
+    let selected = input
+        .iter()
+        .filter(|row| predicate(ones, zeros, row.at(position)))
+        .copied()
+        .collect::<Vec<_>>();
+
+    match selected.len() {
+        1 => selected[0],
+        0 => panic!("Invalid input"),
+        _ => find_value(&selected[..], position + 1, predicate),
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let input = std::env::args().nth(1).ok_or("Invalid input")?;
     let raw = std::fs::read_to_string(input)?;
@@ -159,8 +204,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let gamma = common.most_common()?.into_i32();
     let epsilon = common.least_common()?.into_i32();
 
+    let all = content.iter().collect::<Vec<_>>();
+    let oxy_predicate = |ones, zeros, bit: &Bit| if ones >= zeros { bit.one() } else { bit.zero() };
+    let co2_predicate = |ones, zeros, bit: &Bit| if ones >= zeros { bit.zero() } else { bit.one() };
+    let oxy = find_value(&all[..], 0, oxy_predicate).into_i32();
+    let co2 = find_value(&all[..], 0, co2_predicate).into_i32();
+
     let result_a = gamma * epsilon;
-    println!("Task A: {}", result_a);
+    let result_b = oxy * co2;
+    println!("Task A: {}\nTask B: {}", result_a, result_b);
 
     Ok(())
 }
