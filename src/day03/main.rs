@@ -59,7 +59,7 @@ impl BitRow {
         Self { size, bits }
     }
 
-    pub fn into_i32(&self) -> i32 {
+    pub fn value(&self) -> i32 {
         self.bits
             .iter()
             .enumerate()
@@ -142,9 +142,9 @@ impl Common {
     }
 
     fn most_common(&self) -> Result<BitRow, Box<dyn Error>> {
-        match &self {
-            &Self::Empty => Err("Empty common".into()),
-            &Self::Filled { total, count, .. } => {
+        match self {
+            Self::Empty => Err("Empty common".into()),
+            Self::Filled { total, count, .. } => {
                 let bits = count
                     .iter()
                     .map(|i| if i * 2 >= *total { Bit::One } else { Bit::Zero })
@@ -156,9 +156,9 @@ impl Common {
     }
 
     fn least_common(&self) -> Result<BitRow, Box<dyn Error>> {
-        match &self {
-            &Self::Empty => Err("Empty common".into()),
-            &Self::Filled { total, count, .. } => {
+        match self {
+            Self::Empty => Err("Empty common".into()),
+            Self::Filled { total, count, .. } => {
                 let bits = count
                     .iter()
                     .map(|i| if i * 2 < *total { Bit::One } else { Bit::Zero })
@@ -201,14 +201,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .iter()
         .try_fold(Common::new(), |acc, e| acc.add(e))?;
 
-    let gamma = common.most_common()?.into_i32();
-    let epsilon = common.least_common()?.into_i32();
+    let gamma = common.most_common()?.value();
+    let epsilon = common.least_common()?.value();
 
-    let all = content.iter().collect::<Vec<_>>();
+    let all: Vec<_> = content.iter().collect();
     let oxy_predicate = |ones, zeros, bit: &Bit| if ones >= zeros { bit.one() } else { bit.zero() };
     let co2_predicate = |ones, zeros, bit: &Bit| if ones >= zeros { bit.zero() } else { bit.one() };
-    let oxy = find_value(&all[..], 0, oxy_predicate).into_i32();
-    let co2 = find_value(&all[..], 0, co2_predicate).into_i32();
+    let oxy = find_value(&all[..], 0, oxy_predicate).value();
+    let co2 = find_value(&all[..], 0, co2_predicate).value();
 
     let result_a = gamma * epsilon;
     let result_b = oxy * co2;
@@ -273,6 +273,6 @@ mod test {
     #[test]
     fn test_into_i32() {
         let row = BitRow::parse("01100").unwrap();
-        assert_eq!(row.into_i32(), 12);
+        assert_eq!(row.value(), 12);
     }
 }
