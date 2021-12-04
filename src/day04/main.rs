@@ -1,27 +1,5 @@
 use std::error::Error;
 
-#[derive(Debug)]
-enum Num {
-    Checked(i32),
-    Unchecked(i32),
-}
-
-impl Num {
-    fn checked(&self) -> bool {
-        match self {
-            Num::Checked(_) => true,
-            Num::Unchecked(_) => false,
-        }
-    }
-
-    fn val(&self) -> i32 {
-        match self {
-            Num::Checked(n) => *n,
-            Num::Unchecked(n) => *n,
-        }
-    }
-}
-
 const SIZE: usize = 5;
 
 fn index(row: usize, col: usize) -> usize {
@@ -30,7 +8,7 @@ fn index(row: usize, col: usize) -> usize {
 
 #[derive(Debug)]
 struct Card {
-    numbers: Vec<Num>,
+    numbers: Vec<(i32, bool)>,
 }
 
 impl Card {
@@ -38,20 +16,16 @@ impl Card {
         let numbers = input
             .split(&[' ', '\n'][..])
             .filter(|v| v != &"")
-            .map(|s| s.parse::<i32>().map(|n| Num::Unchecked(n)))
+            .map(|s| s.parse::<i32>().map(|n| (n, false)))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self { numbers })
     }
 
-    fn check(&mut self, number: i32) {
-        for n in self.numbers.iter_mut() {
-            match n {
-                Num::Unchecked(k) if *k == number => {
-                    let value = Num::Checked(number);
-                    let _ = std::mem::replace(n, value);
-                }
-                _ => {}
+    fn mark(&mut self, number: i32) {
+        for (n, checked) in self.numbers.iter_mut() {
+            if *n == number {
+                *checked = true
             }
         }
     }
@@ -59,8 +33,8 @@ impl Card {
     fn sum_unmarked(&self) -> i32 {
         self.numbers
             .iter()
-            .filter(|v| !v.checked())
-            .map(|v| v.val())
+            .filter(|(_, checked)| !checked)
+            .map(|(n, _)| n)
             .sum()
     }
 
@@ -74,13 +48,13 @@ impl Card {
     fn ready_row(&self, row: usize) -> bool {
         (0..5)
             .map(|col| index(row, col))
-            .all(|idx| self.numbers[idx].checked())
+            .all(|idx| self.numbers[idx].1)
     }
 
     fn ready_col(&self, col: usize) -> bool {
         (0..5)
             .map(|row| index(row, col))
-            .all(|idx| self.numbers[idx].checked())
+            .all(|idx| self.numbers[idx].1)
     }
 }
 
@@ -98,16 +72,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut cards = parts.map(Card::parse).collect::<Result<Vec<_>, _>>()?;
     let founed = numbers
         .iter()
-        .inspect(|n| println!("N: {}", n))
         .filter_map(|n| {
-            cards.iter_mut().for_each(|c| c.check(*n));
+            cards.iter_mut().for_each(|c| c.mark(*n));
             let ready = cards.iter().find(|c| c.ready());
             ready.map(|c| c.sum_unmarked()).map(|sum| sum * n)
         })
-        .nth(0);
+        .nth(0)
+        .ok_or_else(|| "Result not found!")?;
 
-    dbg!(founed);
-    // dbg!(cards);
-
+    println!("Task A: {}", founed);
     Ok(())
 }
