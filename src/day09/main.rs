@@ -1,3 +1,4 @@
+use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 
 pub struct Point {
@@ -80,6 +81,26 @@ impl Game {
 
         p.into_iter().filter(move |(x, y)| self.within(*x, *y))
     }
+
+    fn area(&self, x: usize, y: usize) -> usize {
+        let mut visited: HashSet<(usize, usize)> = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back((x, y));
+        while let Some((x, y)) = queue.pop_front() {
+            if let None = visited.get(&(x, y)) {
+                visited.insert((x, y));
+
+                self.around(x, y).for_each(|(x, y)| {
+                    let value = self.point(x, y);
+                    if value < 9 {
+                        queue.push_back((x, y));
+                    }
+                })
+            }
+        }
+
+        visited.len()
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -88,7 +109,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let game = Game::parse(&raw).ok_or("Parser error")?;
     let result_a: u32 = game.lowest().map(|p| p.value + 1).sum();
 
-    dbg!(result_a);
+    let mut areas = game
+        .lowest()
+        .map(|p| game.area(p.x, p.y))
+        .collect::<Vec<_>>();
+
+    areas.sort();
+    areas.reverse();
+
+    let result_b = areas[0..3].into_iter().fold(1, |a, e| a * e);
+
+    println!("Task A: {}\nTask B: {}\n", result_a, result_b);
 
     Ok(())
 }
