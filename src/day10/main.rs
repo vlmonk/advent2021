@@ -5,48 +5,33 @@ enum Info {
     Missing(Vec<char>),
 }
 
+fn matched(input: char) -> char {
+    match input {
+        '[' => ']',
+        '(' => ')',
+        '<' => '>',
+        '{' => '}',
+        _ => panic!("Invalid char: {}", input),
+    }
+}
+
 fn parse(input: &str) -> Info {
     let mut buffer = VecDeque::new();
     for char in input.chars() {
         match char {
             '[' | '(' | '<' | '{' => buffer.push_back(char),
-            '}' => {
-                if let Some('{') = buffer.pop_back() {
-                } else {
-                    return Info::Wrong(char);
-                }
-            }
-            '>' => {
-                if let Some('<') = buffer.pop_back() {
-                } else {
-                    return Info::Wrong(char);
-                }
-            }
-            ']' => {
-                if let Some('[') = buffer.pop_back() {
-                } else {
-                    return Info::Wrong(char);
-                }
-            }
-            ')' => {
-                if let Some('(') = buffer.pop_back() {
-                } else {
-                    return Info::Wrong(char);
-                }
-            }
+            ']' | ')' | '>' | '}' => match buffer.pop_back() {
+                Some(c) if matched(c) == char => {}
+                _ => return Info::Wrong(char),
+            },
             _ => panic!("Invalid char: {}", char),
         }
     }
 
     let mut missing = vec![];
+
     while let Some(c) = buffer.pop_back() {
-        match c {
-            '{' => missing.push('}'),
-            '<' => missing.push('>'),
-            '(' => missing.push(')'),
-            '[' => missing.push(']'),
-            _ => panic!("Invalid char: {}", c),
-        }
+        missing.push(matched(c))
     }
 
     Info::Missing(missing)
