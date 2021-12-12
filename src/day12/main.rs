@@ -95,10 +95,16 @@ impl Path {
         }
     }
 
-    pub fn allow(&self, added: &Cave) -> bool {
+    pub fn allow(&self, added: &Cave, strict: bool) -> bool {
         match added {
             Cave::Large(_) | Cave::End => true,
-            Cave::Small(_) if !self.visited.contains(added) => true,
+            Cave::Small(_) => {
+                if strict {
+                    !self.visited.contains(added)
+                } else {
+                    !self.visited.contains(added) || !self.visited_twice
+                }
+            }
             _ => false,
         }
     }
@@ -138,14 +144,14 @@ impl Game {
         Ok(Self { paths })
     }
 
-    pub fn all_paths(&self) -> Vec<Path> {
+    pub fn all_paths(&self, strict: bool) -> Vec<Path> {
         let mut result = Vec::new();
 
         let mut queue: VecDeque<Path> = VecDeque::new();
         queue.push_back(Path::start());
 
         while let Some(path) = queue.pop_front() {
-            for node in self.next_nodes(&path) {
+            for node in self.next_nodes(&path, strict) {
                 let path = path.add(node);
                 if path.completed() {
                     result.push(path)
@@ -158,8 +164,11 @@ impl Game {
         result
     }
 
-    pub fn next_nodes(&self, p: &Path) -> Vec<Cave> {
-        self.next_cave(p).filter(|c| p.allow(c)).cloned().collect()
+    pub fn next_nodes(&self, p: &Path, strict: bool) -> Vec<Cave> {
+        self.next_cave(p)
+            .filter(|c| p.allow(c, strict))
+            .cloned()
+            .collect()
     }
 
     pub fn next_cave<'a>(&'a self, p: &'a Path) -> impl Iterator<Item = &'a Cave> + 'a {
@@ -180,13 +189,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Invalid input")?;
     let raw = std::fs::read_to_string(filename)?;
     let game = Game::parse(&raw)?;
-    let paths = game.all_paths();
-    for p in paths.iter() {
-        println!("{}", p)
-    }
-    let result_a = paths.len();
 
-    println!("Task A: {}", result_a);
+    let result_a = game.all_paths(true).len();
+    let result_b = game.all_paths(false).len();
 
+    println!("Task A: {}\nTask B: {}", result_a, result_b);
     Ok(())
 }
