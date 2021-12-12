@@ -49,13 +49,31 @@ type Connection = (Cave, Cave);
 
 struct Path {
     path: Vec<Cave>,
+    visited: HashSet<Cave>,
+    visited_twice: bool,
 }
 
 impl Path {
-    pub fn start() -> Self {
-        Self {
-            path: vec![Cave::start()],
+    pub fn new(path: Vec<Cave>) -> Self {
+        let mut visited = HashSet::new();
+        let mut visited_twice = false;
+
+        for c in path.iter() {
+            if let Cave::Small(_) = c {
+                let new_entry = visited.insert(c.clone());
+                visited_twice |= !new_entry;
+            }
         }
+
+        Self {
+            path,
+            visited,
+            visited_twice,
+        }
+    }
+
+    pub fn start() -> Self {
+        Self::new(vec![Cave::start()])
     }
 
     pub fn last(&self) -> &Cave {
@@ -66,7 +84,7 @@ impl Path {
         let mut path = self.path.clone();
         path.push(c);
 
-        Self { path }
+        Self::new(path)
     }
 
     pub fn completed(&self) -> bool {
@@ -74,6 +92,14 @@ impl Path {
             true
         } else {
             false
+        }
+    }
+
+    pub fn allow(&self, added: &Cave) -> bool {
+        match added {
+            Cave::Large(_) | Cave::End => true,
+            Cave::Small(_) if !self.visited.contains(added) => true,
+            _ => false,
         }
     }
 }
@@ -133,37 +159,21 @@ impl Game {
     }
 
     pub fn next_nodes(&self, p: &Path) -> Vec<Cave> {
-        let mut visited = HashSet::new();
+        self.next_cave(p).filter(|c| p.allow(c)).cloned().collect()
+    }
+
+    pub fn next_cave<'a>(&'a self, p: &'a Path) -> impl Iterator<Item = &'a Cave> + 'a {
         let last = p.last();
 
-        for path in p.path.iter() {
-            if let Cave::Small(_) = path {
-                visited.insert(path);
-            };
-        }
-
-        let caves = self
-            .paths
-            .iter()
-            .filter_map(|c| {
-                if c.0 == *last {
-                    Some(c.1.clone())
-                } else if c.1 == *last {
-                    Some(c.0.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        caves
-            .into_iter()
-            .filter_map(|c| match c {
-                Cave::Large(_) | Cave::End => Some(c),
-                Cave::Small(_) if !visited.contains(&c) => Some(c),
-                _ => None,
-            })
-            .collect()
+        self.paths.iter().filter_map(move |c| {
+            if c.0 == *last {
+                Some(&c.1)
+            } else if c.1 == *last {
+                Some(&c.0)
+            } else {
+                None
+            }
+        })
     }
 }
 fn main() -> Result<(), Box<dyn Error>> {
