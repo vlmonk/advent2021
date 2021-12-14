@@ -62,7 +62,7 @@ impl fmt::Display for Field {
         for y in ymin..=ymax {
             for x in xmin..=xmax {
                 if self.dots.contains(&(x, y)) {
-                    write!(f, "*")?;
+                    write!(f, "█")?;
                 } else {
                     write!(f, " ")?;
                 }
