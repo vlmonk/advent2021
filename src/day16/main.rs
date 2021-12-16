@@ -76,6 +76,38 @@ impl Payload {
             Self::Operator(packets, _) => packets.iter().map(|p| p.version_sum()).sum(),
         }
     }
+
+    fn value(&self) -> u64 {
+        match self {
+            Self::Literal(n) => *n,
+            Self::Operator(p, 0) => p.iter().map(|p| p.value()).fold(0, |a, e| a + e),
+            Self::Operator(p, 1) => p.iter().map(|p| p.value()).fold(1, |a, e| a * e),
+            Self::Operator(p, 2) => p.iter().map(|p| p.value()).min().expect("Empty min"),
+            Self::Operator(p, 3) => p.iter().map(|p| p.value()).max().expect("Empty max"),
+            Self::Operator(p, 5) => {
+                if p[0].value() > p[1].value() {
+                    1
+                } else {
+                    0
+                }
+            }
+            Self::Operator(p, 6) => {
+                if p[0].value() < p[1].value() {
+                    1
+                } else {
+                    0
+                }
+            }
+            Self::Operator(p, 7) => {
+                if p[0].value() == p[1].value() {
+                    1
+                } else {
+                    0
+                }
+            }
+            Self::Operator(_, n) => panic!("Invalid typeid: {}", n),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -134,7 +166,7 @@ impl Packet {
 
                         Some((packet, length + 18))
                     }
-                    _ => todo!(),
+                    n => panic!("Invalid lengthid: {}", n),
                 }
             }
         }
@@ -142,6 +174,10 @@ impl Packet {
 
     pub fn version_sum(&self) -> usize {
         self.version as usize + self.payload.version_sum()
+    }
+
+    pub fn value(&self) -> u64 {
+        self.payload.value()
     }
 }
 
@@ -151,11 +187,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut raw = RawData::parse(&input).ok_or_else(|| "Can't parse input")?;
 
     let (packet, _) = Packet::parse(&mut raw).ok_or_else(|| "Can't parse packet")?;
-
     let result_a = packet.version_sum();
-    let result_b = 0;
-    println!("Task A: {}\nTask B: {}", result_a, result_b);
+    let result_b = packet.value();
 
+    println!("Task A: {}\nTask B: {}", result_a, result_b);
     Ok(())
 }
 
