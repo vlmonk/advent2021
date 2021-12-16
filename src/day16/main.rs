@@ -40,7 +40,7 @@ impl BitInput for RawData {
 #[derive(Debug, PartialEq)]
 enum Payload {
     Literal(u64),
-    Operator(Vec<Packet>),
+    Operator(Vec<Packet>, u8),
 }
 
 impl Payload {
@@ -48,8 +48,8 @@ impl Payload {
         Self::Literal(input)
     }
 
-    pub fn operator(input: Vec<Packet>) -> Self {
-        Self::Operator(input)
+    pub fn operator(input: Vec<Packet>, typeid: u8) -> Self {
+        Self::Operator(input, typeid)
     }
 
     fn parse_literal<T>(input: &mut T) -> Option<(Self, usize)>
@@ -73,7 +73,7 @@ impl Payload {
     fn version_sum(&self) -> usize {
         match self {
             Self::Literal(_) => 0,
-            Self::Operator(packets) => packets.iter().map(|p| p.version_sum()).sum(),
+            Self::Operator(packets, _) => packets.iter().map(|p| p.version_sum()).sum(),
         }
     }
 }
@@ -81,17 +81,12 @@ impl Payload {
 #[derive(Debug, PartialEq)]
 struct Packet {
     version: u8,
-    typeid: u8,
     payload: Payload,
 }
 
 impl Packet {
-    fn new(version: u8, typeid: u8, payload: Payload) -> Self {
-        Self {
-            version,
-            typeid,
-            payload,
-        }
+    fn new(version: u8, payload: Payload) -> Self {
+        Self { version, payload }
     }
 
     pub fn parse<T>(input: &mut T) -> Option<(Self, usize)>
@@ -104,7 +99,7 @@ impl Packet {
         match typeid {
             4 => {
                 let (payload, size) = Payload::parse_literal(input)?;
-                let packet = Packet::new(version, typeid, payload);
+                let packet = Packet::new(version, payload);
                 Some((packet, size + 6))
             }
             _ => {
@@ -119,8 +114,8 @@ impl Packet {
                             packets.push(packet);
                             rest -= size;
                         }
-                        let payload = Payload::operator(packets);
-                        let packet = Self::new(version, typeid, payload);
+                        let payload = Payload::operator(packets, typeid);
+                        let packet = Self::new(version, payload);
 
                         Some((packet, length + 22))
                     }
@@ -134,8 +129,8 @@ impl Packet {
                             length += size;
                             count -= 1;
                         }
-                        let payload = Payload::operator(packets);
-                        let packet = Self::new(version, typeid, payload);
+                        let payload = Payload::operator(packets, typeid);
+                        let packet = Self::new(version, payload);
 
                         Some((packet, length + 18))
                     }
@@ -174,7 +169,7 @@ mod tests {
         let mut raw = RawData::parse(&input).unwrap();
         let (packet, size) = Packet::parse(&mut raw).unwrap();
         let payload = Payload::literal(2021);
-        let expected = Packet::new(6, 4, payload);
+        let expected = Packet::new(6, payload);
 
         assert_eq!(packet, expected);
         assert_eq!(size, 21);
@@ -185,10 +180,10 @@ mod tests {
         let input = "38006F45291200";
         let mut raw = RawData::parse(&input).unwrap();
         let (packet, size) = Packet::parse(&mut raw).unwrap();
-        let a = Packet::new(6, 4, Payload::literal(10));
-        let b = Packet::new(2, 4, Payload::literal(20));
-        let payload = Payload::operator(vec![a, b]);
-        let expected = Packet::new(1, 6, payload);
+        let a = Packet::new(6, Payload::literal(10));
+        let b = Packet::new(2, Payload::literal(20));
+        let payload = Payload::operator(vec![a, b], 6);
+        let expected = Packet::new(1, payload);
 
         assert_eq!(packet, expected);
         assert_eq!(size, 49);
