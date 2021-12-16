@@ -40,6 +40,7 @@ impl BitInput for RawData {
 #[derive(Debug, PartialEq)]
 enum Payload {
     Literal(u64),
+    Operator(Vec<Packet>),
 }
 
 impl Payload {
@@ -47,7 +48,11 @@ impl Payload {
         Self::Literal(input)
     }
 
-    fn parse_literal<T>(input: &mut T) -> Option<Self>
+    pub fn operator(input: Vec<Packet>) -> Self {
+        Self::Operator(input)
+    }
+
+    fn parse_literal<T>(input: &mut T) -> Option<(Self, usize)>
     where
         T: BitInput,
     {
@@ -62,7 +67,14 @@ impl Payload {
         }
 
         let value = u64::from_str_radix(&parts.join(""), 2).ok()?;
-        Some(Self::literal(value))
+        Some((Self::literal(value), parts.len() * 5))
+    }
+
+    fn version_sum(&self) -> usize {
+        match self {
+            Self::Literal(_) => 0,
+            Self::Operator(packets) => packets.iter().map(|p| p.version_sum()).sum(),
+        }
     }
 }
 
@@ -70,11 +82,19 @@ impl Payload {
 struct Packet {
     version: u8,
     typeid: u8,
-    payload: Box<Payload>,
+    payload: Payload,
 }
 
 impl Packet {
-    pub fn parse<T>(input: &mut T) -> Option<Self>
+    fn new(version: u8, typeid: u8, payload: Payload) -> Self {
+        Self {
+            version,
+            typeid,
+            payload,
+        }
+    }
+
+    pub fn parse<T>(input: &mut T) -> Option<(Self, usize)>
     where
         T: BitInput,
     {
@@ -83,15 +103,50 @@ impl Packet {
 
         match typeid {
             4 => {
-                let payload = Payload::parse_literal(input)?;
-                Some(Self {
-                    version,
-                    typeid,
-                    payload: Box::new(payload),
-                })
+                let (payload, size) = Payload::parse_literal(input)?;
+                let packet = Packet::new(version, typeid, payload);
+                Some((packet, size + 6))
             }
-            n => panic!("Invalid typeid: {}", n),
+            _ => {
+                let lengthid = input.take(1)?;
+                match lengthid {
+                    0 => {
+                        let length = input.take(15)? as usize;
+                        let mut rest = length;
+                        let mut packets = vec![];
+                        while rest > 0 {
+                            let (packet, size) = Self::parse(input)?;
+                            packets.push(packet);
+                            rest -= size;
+                        }
+                        let payload = Payload::operator(packets);
+                        let packet = Self::new(version, typeid, payload);
+
+                        Some((packet, length + 22))
+                    }
+                    1 => {
+                        let mut count = input.take(11)? as usize;
+                        let mut length = 0;
+                        let mut packets = vec![];
+                        while count > 0 {
+                            let (packet, size) = Self::parse(input)?;
+                            packets.push(packet);
+                            length += size;
+                            count -= 1;
+                        }
+                        let payload = Payload::operator(packets);
+                        let packet = Self::new(version, typeid, payload);
+
+                        Some((packet, length + 18))
+                    }
+                    _ => todo!(),
+                }
+            }
         }
+    }
+
+    pub fn version_sum(&self) -> usize {
+        self.version as usize + self.payload.version_sum()
     }
 }
 
@@ -100,10 +155,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input = std::fs::read_to_string(filename)?;
     let mut raw = RawData::parse(&input).ok_or_else(|| "Can't parse input")?;
 
-    let x = Packet::parse(&mut raw);
-    dbg!(x);
+    let (packet, _) = Packet::parse(&mut raw).ok_or_else(|| "Can't parse packet")?;
 
-    let result_a = 0;
+    let result_a = packet.version_sum();
     let result_b = 0;
     println!("Task A: {}\nTask B: {}", result_a, result_b);
 
@@ -118,14 +172,25 @@ mod tests {
     fn test_literal() {
         let input = "D2FE28";
         let mut raw = RawData::parse(&input).unwrap();
-        let packet = Packet::parse(&mut raw).unwrap();
-        let payload = Box::new(Payload::literal(2021));
-        let expected = Packet {
-            version: 6,
-            typeid: 4,
-            payload,
-        };
+        let (packet, size) = Packet::parse(&mut raw).unwrap();
+        let payload = Payload::literal(2021);
+        let expected = Packet::new(6, 4, payload);
 
         assert_eq!(packet, expected);
+        assert_eq!(size, 21);
+    }
+
+    #[test]
+    fn test_operator_1() {
+        let input = "38006F45291200";
+        let mut raw = RawData::parse(&input).unwrap();
+        let (packet, size) = Packet::parse(&mut raw).unwrap();
+        let a = Packet::new(6, 4, Payload::literal(10));
+        let b = Packet::new(2, 4, Payload::literal(20));
+        let payload = Payload::operator(vec![a, b]);
+        let expected = Packet::new(1, 6, payload);
+
+        assert_eq!(packet, expected);
+        assert_eq!(size, 49);
     }
 }
