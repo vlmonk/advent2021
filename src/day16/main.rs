@@ -1,5 +1,12 @@
 use std::error::Error;
 
+fn bool_to_value(input: bool) -> u64 {
+    match input {
+        true => 1,
+        false => 0,
+    }
+}
+
 trait BitInput {
     fn take(&mut self, n: usize) -> Option<u64>;
 }
@@ -84,27 +91,9 @@ impl Payload {
             Self::Operator(p, 1) => p.iter().map(|p| p.value()).fold(1, |a, e| a * e),
             Self::Operator(p, 2) => p.iter().map(|p| p.value()).min().expect("Empty min"),
             Self::Operator(p, 3) => p.iter().map(|p| p.value()).max().expect("Empty max"),
-            Self::Operator(p, 5) => {
-                if p[0].value() > p[1].value() {
-                    1
-                } else {
-                    0
-                }
-            }
-            Self::Operator(p, 6) => {
-                if p[0].value() < p[1].value() {
-                    1
-                } else {
-                    0
-                }
-            }
-            Self::Operator(p, 7) => {
-                if p[0].value() == p[1].value() {
-                    1
-                } else {
-                    0
-                }
-            }
+            Self::Operator(p, 5) => bool_to_value(p[0].value() > p[1].value()),
+            Self::Operator(p, 6) => bool_to_value(p[0].value() < p[1].value()),
+            Self::Operator(p, 7) => bool_to_value(p[0].value() == p[1].value()),
             Self::Operator(_, n) => panic!("Invalid typeid: {}", n),
         }
     }
