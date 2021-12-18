@@ -66,7 +66,8 @@ enum Number {
 
 impl Number {
     pub fn parse(input: &str) -> Option<Self> {
-        None
+        let mut tokens = Tokenizer::new(input);
+        Number::parse_next(&mut tokens)
     }
 
     pub fn single(input: i32) -> Self {
@@ -78,14 +79,37 @@ impl Number {
         let b = Box::new(b);
         Self::Pair(a, b)
     }
+
+    pub fn parse_next(tokens: &mut Tokenizer) -> Option<Number> {
+        let token = tokens.next()?;
+        match token {
+            Token::Num(v) => Some(Number::single(v)),
+            Token::Open => {
+                let a = Number::parse_next(tokens)?;
+                if let Some(Token::Comma) = tokens.next() {
+                } else {
+                    return None;
+                }
+
+                let b = Number::parse_next(tokens)?;
+
+                if let Some(Token::Close) = tokens.next() {
+                } else {
+                    return None;
+                }
+
+                Some(Number::pair(a, b))
+            }
+            _ => None,
+        }
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Invalid input")?;
     let input = std::fs::read_to_string(filename)?;
-    dbg!(&input);
-    let mut tokenizer = Tokenizer::new(&input);
-    dbg!(tokenizer.next());
+    let number = Number::parse(&input);
+    dbg!(number);
 
     Ok(())
 }
@@ -94,13 +118,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 mod test {
     use super::*;
 
-    // #[test]
-    // fn test_simple() {
-    //     let input = "[1,2]";
-    //     let expected = Number::pair(Number::single(1), Number::Single(2));
-    //     let result = Number::parse(input).unwrap();
-    //     assert_eq!(result, expected);
-    // }
+    #[test]
+    fn test_parse_single_num() {
+        let input = "12";
+        let expected = Number::Single(12);
+        let result = Number::parse(input).unwrap();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_simple() {
+        let input = "[1,2]";
+        let expected = Number::pair(Number::single(1), Number::Single(2));
+        let result = Number::parse(input).unwrap();
+        assert_eq!(result, expected);
+    }
 
     #[test]
     fn test_tokenizer() {
