@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt};
 
 #[derive(Debug, PartialEq)]
 enum Token {
@@ -59,6 +59,23 @@ impl<'a> Iterator for Tokenizer<'a> {
 }
 
 #[derive(Debug, PartialEq)]
+struct ExplodePosition<'a> {
+    left: Option<&'a mut Number>,
+    pair: &'a mut Number,
+    right: Option<&'a mut Number>,
+}
+
+impl<'a> ExplodePosition<'a> {
+    fn new(
+        left: Option<&'a mut Number>,
+        pair: &'a mut Number,
+        right: Option<&'a mut Number>,
+    ) -> Self {
+        Self { left, pair, right }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 enum Number {
     Single(i32),
     Pair(Box<Number>, Box<Number>),
@@ -68,6 +85,27 @@ impl Number {
     pub fn parse(input: &str) -> Option<Self> {
         let mut tokens = Tokenizer::new(input);
         Number::parse_next(&mut tokens)
+    }
+
+    pub fn value(&self) -> Option<i32> {
+        match self {
+            Self::Single(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    pub fn a(&self) -> Option<&Number> {
+        match self {
+            Self::Pair(a, _) => Some(a),
+            _ => None,
+        }
+    }
+
+    pub fn is_pair(&self) -> bool {
+        match self {
+            Self::Pair(_, _) => true,
+            _ => false,
+        }
     }
 
     pub fn single(input: i32) -> Self {
@@ -103,13 +141,96 @@ impl Number {
             _ => None,
         }
     }
+
+    pub fn explode(&mut self) {
+        if let Some(ExplodePosition { left, pair, right }) = self.find_pair(4) {
+            // if let (Some(left), Some(value)) = (left, pair.a().and_then(|n| n.value())) {
+            //     *left += value
+            // }
+            let mut number = Number::single(0);
+            std::mem::swap(pair, &mut number);
+        }
+        // let left: Option<&Number> = None;
+        // if let Some(position) = self.find_pair(4, None, None) {
+        //     let mut number = Number::single(0);
+        //     std::mem::swap(pair, &mut number);
+        // }
+    }
+
+    fn find_left(&mut self) -> &mut Number {
+        match self {
+            Number::Single(_) => self,
+            Number::Pair(a, _) => a.find_left(),
+        }
+    }
+
+    fn find_right(&mut self) -> &mut Number {
+        match self {
+            Number::Single(_) => self,
+            Number::Pair(_, b) => b.find_right(),
+        }
+    }
+
+    fn find_pair(&mut self, depth: usize) -> Option<ExplodePosition> {
+        if depth > 0 {
+            dbg!(depth);
+            match self {
+                Number::Single(_) => None,
+                Number::Pair(a, b) => {
+                    if a.is_pair() {
+                        if let Some(ExplodePosition { left, pair, right }) = a.find_pair(depth - 1)
+                        {
+                            let right = match right {
+                                Some(right) => Some(right),
+                                None => Some(b.find_right()),
+                            };
+
+                            return Some(ExplodePosition::new(left, pair, right));
+                        }
+                    } else if b.is_pair() {
+                        if let Some(ExplodePosition { left, pair, right }) = b.find_pair(depth - 1)
+                        {
+                            let left = match left {
+                                Some(left) => Some(left),
+                                None => Some(a.find_left()),
+                            };
+
+                            return Some(ExplodePosition::new(left, pair, right));
+                        }
+                    }
+
+                    None
+                }
+            }
+        } else {
+            match self {
+                Number::Single(_) => None,
+                Number::Pair(_, _) => Some(ExplodePosition::new(None, self, None)),
+            }
+        }
+    }
+}
+
+impl fmt::Display for Number {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Number::Single(v) => write!(f, "{}", v),
+            Number::Pair(a, b) => write!(f, "[{},{}]", a, b),
+        }
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Invalid input")?;
     let input = std::fs::read_to_string(filename)?;
-    let number = Number::parse(&input);
-    dbg!(number);
+    let mut number = Number::parse(&input).ok_or("Can't parse input")?;
+    println!("{}", number);
+    number.explode();
+    println!("{}", number);
+
+    // if let Some(n) = number.find_pair(4) {
+    //     println!("p: {}", n);
+    // }
 
     Ok(())
 }
@@ -121,7 +242,7 @@ mod test {
     #[test]
     fn test_parse_single_num() {
         let input = "12";
-        let expected = Number::Single(12);
+        let expected = Number::single(12);
         let result = Number::parse(input).unwrap();
         assert_eq!(result, expected);
     }
@@ -129,7 +250,7 @@ mod test {
     #[test]
     fn test_simple() {
         let input = "[1,2]";
-        let expected = Number::pair(Number::single(1), Number::Single(2));
+        let expected = Number::pair(Number::single(1), Number::single(2));
         let result = Number::parse(input).unwrap();
         assert_eq!(result, expected);
     }
