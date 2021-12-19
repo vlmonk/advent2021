@@ -60,17 +60,13 @@ impl<'a> Iterator for Tokenizer<'a> {
 
 #[derive(Debug, PartialEq)]
 struct ExplodePosition<'a> {
-    left: Option<&'a mut Number>,
+    left: Option<&'a mut i32>,
     pair: &'a mut Number,
-    right: Option<&'a mut Number>,
+    right: Option<&'a mut i32>,
 }
 
 impl<'a> ExplodePosition<'a> {
-    fn new(
-        left: Option<&'a mut Number>,
-        pair: &'a mut Number,
-        right: Option<&'a mut Number>,
-    ) -> Self {
+    fn new(left: Option<&'a mut i32>, pair: &'a mut Number, right: Option<&'a mut i32>) -> Self {
         Self { left, pair, right }
     }
 }
@@ -94,17 +90,23 @@ impl Number {
         }
     }
 
-    pub fn a(&self) -> Option<&Number> {
+    pub fn a(&self) -> Option<i32> {
         match self {
-            Self::Pair(a, _) => Some(a),
+            Self::Pair(a, _) => match **a {
+                Self::Single(v) => Some(v),
+                _ => None,
+            },
             _ => None,
         }
     }
 
-    pub fn is_pair(&self) -> bool {
+    pub fn b(&self) -> Option<i32> {
         match self {
-            Self::Pair(_, _) => true,
-            _ => false,
+            Self::Pair(_, b) => match **b {
+                Self::Single(v) => Some(v),
+                _ => None,
+            },
+            _ => None,
         }
     }
 
@@ -144,6 +146,14 @@ impl Number {
 
     pub fn explode(&mut self) {
         if let Some(ExplodePosition { left, pair, right }) = self.find_pair(4) {
+            if let (Some(left), Some(value)) = (left, pair.a()) {
+                *left += value
+            }
+
+            if let (Some(right), Some(value)) = (right, pair.b()) {
+                *right += value
+            }
+
             // if let (Some(left), Some(value)) = (left, pair.a().and_then(|n| n.value())) {
             //     *left += value
             // }
@@ -157,17 +167,31 @@ impl Number {
         // }
     }
 
-    fn find_left(&mut self) -> &mut Number {
+    fn find_left(&mut self) -> &mut i32 {
         match self {
-            Number::Single(_) => self,
+            Number::Single(value) => value,
             Number::Pair(a, _) => a.find_left(),
         }
     }
 
-    fn find_right(&mut self) -> &mut Number {
+    fn find_right(&mut self) -> &mut i32 {
         match self {
-            Number::Single(_) => self,
+            Number::Single(value) => value,
             Number::Pair(_, b) => b.find_right(),
+        }
+    }
+
+    fn has_pair(&self, depth: usize) -> bool {
+        if depth > 0 {
+            match self {
+                Number::Single(_) => false,
+                Number::Pair(a, b) => a.has_pair(depth - 1) || b.has_pair(depth - 1),
+            }
+        } else {
+            match self {
+                Number::Single(_) => false,
+                Number::Pair(_, _) => true,
+            }
         }
     }
 
@@ -177,22 +201,25 @@ impl Number {
             match self {
                 Number::Single(_) => None,
                 Number::Pair(a, b) => {
-                    if a.is_pair() {
+                    let path_a = a.has_pair(depth - 1);
+                    let path_b = b.has_pair(depth - 1);
+
+                    if path_a {
                         if let Some(ExplodePosition { left, pair, right }) = a.find_pair(depth - 1)
                         {
                             let right = match right {
                                 Some(right) => Some(right),
-                                None => Some(b.find_right()),
+                                None => Some(b.find_left()),
                             };
 
                             return Some(ExplodePosition::new(left, pair, right));
                         }
-                    } else if b.is_pair() {
+                    } else if path_b {
                         if let Some(ExplodePosition { left, pair, right }) = b.find_pair(depth - 1)
                         {
                             let left = match left {
                                 Some(left) => Some(left),
-                                None => Some(a.find_left()),
+                                None => Some(a.find_right()),
                             };
 
                             return Some(ExplodePosition::new(left, pair, right));
@@ -227,10 +254,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", number);
     number.explode();
     println!("{}", number);
-
-    // if let Some(n) = number.find_pair(4) {
-    //     println!("p: {}", n);
-    // }
 
     Ok(())
 }
