@@ -71,7 +71,7 @@ impl<'a> ExplodePosition<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum Number {
     Single(i32),
     Pair(Box<Number>, Box<Number>),
@@ -303,19 +303,31 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect::<Option<Vec<_>>>()
         .ok_or("Can't parse input")?;
 
-    for n in numbers.iter() {
-        println!("{}", n);
-    }
-
     let sum = numbers
-        .into_iter()
+        .iter()
+        .cloned()
         .reduce(|a, b| a.add(b))
         .ok_or("empty input")?;
 
     let result_a = sum.magnitude();
-    println!("{}", sum);
 
-    println!("Task A: {}", result_a);
+    let mut max_sum = None;
+
+    for (idx, a) in numbers.iter().enumerate() {
+        for b in numbers[idx + 1..].iter() {
+            let sum_a = a.clone().add(b.clone()).magnitude();
+            let sum_b = b.clone().add(a.clone()).magnitude();
+
+            let max = sum_a.max(sum_b);
+
+            max_sum = match max_sum {
+                Some(v) if v > max => Some(v),
+                _ => Some(max),
+            };
+        }
+    }
+
+    println!("Task A: {}, Task B: {}", result_a, max_sum.unwrap());
 
     Ok(())
 }
