@@ -84,8 +84,8 @@ impl Number {
     }
 
     pub fn value(&self) -> Option<i32> {
-        match self {
-            Self::Single(v) => Some(*v),
+        match *self {
+            Self::Single(v) => Some(v),
             _ => None,
         }
     }
@@ -144,8 +144,22 @@ impl Number {
         }
     }
 
-    pub fn explode(&mut self) {
-        if let Some(ExplodePosition { left, pair, right }) = self.find_pair(4) {
+    pub fn reduce(&mut self) {
+        loop {
+            if self.explode() {
+                continue;
+            }
+
+            if self.split() {
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    pub fn explode(&mut self) -> bool {
+        if let Some(ExplodePosition { left, pair, right }) = self.find_explode(4) {
             if let (Some(left), Some(value)) = (left, pair.a()) {
                 *left += value
             }
@@ -154,17 +168,28 @@ impl Number {
                 *right += value
             }
 
-            // if let (Some(left), Some(value)) = (left, pair.a().and_then(|n| n.value())) {
-            //     *left += value
-            // }
             let mut number = Number::single(0);
             std::mem::swap(pair, &mut number);
+            true
+        } else {
+            false
         }
-        // let left: Option<&Number> = None;
-        // if let Some(position) = self.find_pair(4, None, None) {
-        //     let mut number = Number::single(0);
-        //     std::mem::swap(pair, &mut number);
-        // }
+    }
+
+    pub fn split(&mut self) -> bool {
+        if let Some(node) = self.find_split() {
+            if let Some(value) = node.value() {
+                let a = value / 2;
+                let b = value - a;
+                let mut number = Number::pair(Number::single(a), Number::single(b));
+                std::mem::swap(node, &mut number);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     fn find_left(&mut self) -> &mut i32 {
@@ -195,9 +220,8 @@ impl Number {
         }
     }
 
-    fn find_pair(&mut self, depth: usize) -> Option<ExplodePosition> {
+    fn find_explode(&mut self, depth: usize) -> Option<ExplodePosition> {
         if depth > 0 {
-            dbg!(depth);
             match self {
                 Number::Single(_) => None,
                 Number::Pair(a, b) => {
@@ -205,7 +229,8 @@ impl Number {
                     let path_b = b.has_pair(depth - 1);
 
                     if path_a {
-                        if let Some(ExplodePosition { left, pair, right }) = a.find_pair(depth - 1)
+                        if let Some(ExplodePosition { left, pair, right }) =
+                            a.find_explode(depth - 1)
                         {
                             let right = match right {
                                 Some(right) => Some(right),
@@ -215,7 +240,8 @@ impl Number {
                             return Some(ExplodePosition::new(left, pair, right));
                         }
                     } else if path_b {
-                        if let Some(ExplodePosition { left, pair, right }) = b.find_pair(depth - 1)
+                        if let Some(ExplodePosition { left, pair, right }) =
+                            b.find_explode(depth - 1)
                         {
                             let left = match left {
                                 Some(left) => Some(left),
@@ -236,6 +262,27 @@ impl Number {
             }
         }
     }
+
+    fn find_split(&mut self) -> Option<&mut Number> {
+        match self {
+            Self::Single(n) if *n >= 10 => Some(self),
+            Self::Pair(a, b) => a.find_split().or(b.find_split()),
+            _ => None,
+        }
+    }
+
+    fn add(self, rhs: Number) -> Number {
+        let mut pair = Number::pair(self, rhs);
+        pair.reduce();
+        pair
+    }
+
+    fn magnitude(&self) -> i32 {
+        match self {
+            Number::Single(v) => *v,
+            Number::Pair(a, b) => a.magnitude() * 3 + b.magnitude() * 2,
+        }
+    }
 }
 
 impl fmt::Display for Number {
@@ -250,10 +297,25 @@ impl fmt::Display for Number {
 fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Invalid input")?;
     let input = std::fs::read_to_string(filename)?;
-    let mut number = Number::parse(&input).ok_or("Can't parse input")?;
-    println!("{}", number);
-    number.explode();
-    println!("{}", number);
+    let numbers = input
+        .lines()
+        .map(|line| Number::parse(line))
+        .collect::<Option<Vec<_>>>()
+        .ok_or("Can't parse input")?;
+
+    for n in numbers.iter() {
+        println!("{}", n);
+    }
+
+    let sum = numbers
+        .into_iter()
+        .reduce(|a, b| a.add(b))
+        .ok_or("empty input")?;
+
+    let result_a = sum.magnitude();
+    println!("{}", sum);
+
+    println!("Task A: {}", result_a);
 
     Ok(())
 }
@@ -307,5 +369,24 @@ mod test {
         assert_eq!(tokenizer.next(), Some(Token::Comma));
         assert_eq!(tokenizer.next(), Some(Token::Num(111)));
         assert_eq!(tokenizer.next(), None);
+    }
+
+    #[test]
+    fn test_add() {
+        let a = Number::parse("[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]").unwrap();
+        let b = Number::parse("[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]").unwrap();
+        let result =
+            Number::parse("[[[[4,0],[5,4]],[[7,7],[6,0]]],[[8,[7,7]],[[7,9],[5,0]]]]").unwrap();
+
+        assert_eq!(a.add(b), result);
+    }
+
+    #[test]
+    fn test_magnitude() {
+        let a = Number::parse("[[1,2],[[3,4],5]]").unwrap();
+        let b = Number::parse("[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]").unwrap();
+
+        assert_eq!(a.magnitude(), 143);
+        assert_eq!(b.magnitude(), 3488);
     }
 }
