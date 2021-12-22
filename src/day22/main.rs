@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{collections::HashSet, error::Error, fmt::Display};
+use std::{collections::HashSet, error::Error};
 
 fn segments(amin: i64, amax: i64, bmin: i64, bmax: i64) -> impl Iterator<Item = (i64, i64)> {
     let p0 = amin.min(bmin);
@@ -74,13 +74,6 @@ impl Cuboid {
         x && y && z
     }
 
-    pub fn merge(&self, other: &Cuboid) -> impl Iterator<Item = Cuboid> {
-        let all = parts(self, other)
-            .filter(|c| self.intersect(c) || other.intersect(c))
-            .collect::<Vec<_>>();
-        all.into_iter()
-    }
-
     fn size(&self) -> i64 {
         (self.xmax - self.xmin + 1) * (self.ymax - self.ymin + 1) * (self.zmax - self.zmin + 1)
     }
@@ -114,20 +107,6 @@ impl Cuboid {
             None
         }
     }
-
-    // fn valid(&self) -> bool {
-    //     self.xmin <= self.xmax && self.ymin <= self.ymax && self.zmin <= self.zmax
-    // }
-}
-
-impl Display for Cuboid {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}, {}, {} -> {}, {}, {}",
-            self.xmin, self.ymin, self.zmin, self.xmax, self.ymax, self.zmax
-        )
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -142,15 +121,6 @@ impl Action {
             "on" => Some(Self::On),
             "off" => Some(Self::Off),
             _ => None,
-        }
-    }
-}
-
-impl Display for Action {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::On => write!(f, "On"),
-            Self::Off => write!(f, "Off"),
         }
     }
 }
@@ -199,12 +169,6 @@ impl Rule {
     }
 }
 
-impl Display for Rule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.action, self.cuboid)
-    }
-}
-
 #[derive(Debug)]
 struct Reactor {
     cubes: HashSet<Cuboid>,
@@ -217,8 +181,6 @@ impl Reactor {
     }
 
     pub fn process(&mut self, rule: &Rule) {
-        // println!("{}", rule);
-
         match (self.cubes.len(), &rule.action) {
             (0, Action::On) => {
                 self.cubes.insert(rule.cuboid.clone());
@@ -229,6 +191,7 @@ impl Reactor {
 
                 for cube in &self.cubes {
                     let mut next_inserted = vec![];
+
                     for i in inserted.iter() {
                         for next_part in not(&i, &cube) {
                             next_inserted.push(next_part);
@@ -258,37 +221,6 @@ impl Reactor {
 
     pub fn enabled(&self) -> i64 {
         self.cubes.iter().map(|c| c.size()).sum()
-    }
-
-    // fn xrange(rule: &Rule) -> impl Iterator<Item = i32> {
-    //     let min = rule.cuboid.xmin.max(-50);
-    //     let max = rule.cuboid.xmax.min(50);
-
-    //     min..=max
-    // }
-
-    // fn yrange(rule: &Rule) -> impl Iterator<Item = i32> {
-    //     let min = rule.cuboid.ymin.max(-50);
-    //     let max = rule.cuboid.ymax.min(50);
-
-    //     min..=max
-    // }
-
-    // fn zrange(rule: &Rule) -> impl Iterator<Item = i32> {
-    //     let min = rule.cuboid.zmin.max(-50);
-    //     let max = rule.cuboid.zmax.min(50);
-
-    //     min..=max
-    // }
-}
-
-impl Display for Reactor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for cube in &self.cubes {
-            write!(f, "{}\n", cube)?;
-        }
-
-        Ok(())
     }
 }
 
@@ -323,50 +255,4 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Task A: {}, Task B: {}", result_a, result_b);
 
     Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_intesect_1() {
-        let a = Cuboid::new(-1, 1, -1, 1, -1, 1);
-        let b = Cuboid::new(2, 4, 2, 4, 2, 4);
-        let c = Cuboid::new(1, 2, 1, 2, 1, 2);
-
-        assert_eq!(a.intersect(&b), false);
-        assert_eq!(b.intersect(&a), false);
-
-        assert!(a.intersect(&c));
-        assert!(c.intersect(&a));
-
-        assert!(b.intersect(&c));
-        assert!(c.intersect(&b));
-    }
-
-    #[test]
-    fn test_merge() {
-        let a = Cuboid::new(0, 1, 0, 1, 0, 1);
-        let b = Cuboid::new(1, 2, 0, 1, 0, 1);
-
-        let merge = a.merge(&b).into_iter().collect::<HashSet<_>>();
-        assert_eq!(merge.len(), 3);
-
-        assert!(merge.contains(&Cuboid::new(0, 0, 0, 1, 0, 1)));
-        assert!(merge.contains(&Cuboid::new(1, 1, 0, 1, 0, 1)));
-        assert!(merge.contains(&Cuboid::new(2, 2, 0, 1, 0, 1)));
-    }
-
-    #[test]
-    fn test_merge_full() {
-        let a = Cuboid::new(2, 3, 0, 1, 0, 1);
-        let b = Cuboid::new(2, 5, 0, 1, 0, 1);
-
-        let merge = a.merge(&b).into_iter().collect::<HashSet<_>>();
-        assert_eq!(merge.len(), 2);
-
-        assert!(merge.contains(&Cuboid::new(2, 3, 0, 1, 0, 1)));
-        assert!(merge.contains(&Cuboid::new(4, 5, 0, 1, 0, 1)));
-    }
 }
