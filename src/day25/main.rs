@@ -1,6 +1,6 @@
-use std::{collections::HashMap, error::Error, fmt::Display};
+use std::{collections::HashMap, error::Error, fmt::Display, iter::repeat};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 enum Cucumber {
     East,
     South,
@@ -56,6 +56,78 @@ impl Field {
     fn get(&self, x: usize, y: usize) -> Option<Cucumber> {
         self.points.get(&(x, y)).copied()
     }
+
+    fn east<'a>(&'a self) -> impl Iterator<Item = (usize, usize)> + 'a {
+        self.points
+            .iter()
+            .filter(|(_, c)| **c == Cucumber::East)
+            .map(|(xy, _)| xy)
+            .copied()
+    }
+
+    fn south<'a>(&'a self) -> impl Iterator<Item = (usize, usize)> + 'a {
+        self.points
+            .iter()
+            .filter(|(_, c)| **c == Cucumber::South)
+            .map(|(xy, _)| xy)
+            .copied()
+    }
+
+    fn step_east(&mut self) -> usize {
+        let mut points = HashMap::new();
+        let mut moved = 0;
+
+        for (x, y) in self.east() {
+            let (nx, ny) = ((x + 1) % self.width, y);
+            match self.get(nx, ny) {
+                Some(_) => {
+                    points.insert((x, y), Cucumber::East);
+                }
+                None => {
+                    points.insert((nx, ny), Cucumber::East);
+                    moved += 1
+                }
+            };
+        }
+
+        for pos in self.south() {
+            points.insert(pos, Cucumber::South);
+        }
+
+        self.points = points;
+
+        moved
+    }
+
+    fn step_south(&mut self) -> usize {
+        let mut points = HashMap::new();
+        let mut moved = 0;
+
+        for (x, y) in self.south() {
+            let (nx, ny) = (x, (y + 1) % self.height);
+            match self.get(nx, ny) {
+                Some(_) => {
+                    points.insert((x, y), Cucumber::South);
+                }
+                None => {
+                    points.insert((nx, ny), Cucumber::South);
+                    moved += 1
+                }
+            };
+        }
+
+        for pos in self.east() {
+            points.insert(pos, Cucumber::East);
+        }
+
+        self.points = points;
+
+        moved
+    }
+
+    fn step(&mut self) -> usize {
+        self.step_east() + self.step_south()
+    }
 }
 
 impl Display for Field {
@@ -78,11 +150,8 @@ impl Display for Field {
 fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Invalid input")?;
     let input = std::fs::read_to_string(filename)?;
-    let field = Field::parse(&input).ok_or("Can't parse input")?;
-
-    println!("{}", field);
-
-    let result_a = 0;
+    let mut field = Field::parse(&input).ok_or("Can't parse input")?;
+    let result_a = repeat(()).take_while(|_| field.step() > 0).count() + 1;
     let result_b = 0;
 
     println!("Task A: {}, Task B: {}", result_a, result_b);
