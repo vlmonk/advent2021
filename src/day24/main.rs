@@ -157,6 +157,50 @@ impl Computer {
     }
 }
 
+pub struct Code {
+    current: i64,
+}
+
+impl Code {
+    pub fn new() -> Self {
+        Self {
+            current: 99_999_999_999_999,
+        }
+    }
+}
+
+impl Iterator for Code {
+    type Item = Vec<i64>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        'outer: loop {
+            if self.current == 0 {
+                break;
+            }
+
+            let value = self.current;
+            self.current -= 1;
+
+            let printed = format!("{:014}", value);
+            let digits = printed
+                .chars()
+                .map(|c| c.to_digit(10).map(|v| v as i64))
+                .collect::<Option<Vec<_>>>()
+                .expect("Invalid number");
+
+            for d in &digits {
+                if *d == 0 {
+                    continue 'outer;
+                }
+            }
+
+            return Some(digits);
+        }
+
+        None
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Invalid input")?;
     let input = std::fs::read_to_string(filename)?;
@@ -166,11 +210,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect::<Option<Vec<_>>>()
         .ok_or("Can't parse")?;
 
-    dbg!(&commands);
+    // dbg!(&commands);
 
-    let mut computer = Computer::new();
-    computer.run(&commands, &[9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]);
-    dbg!(computer);
+    let code = Code::new();
+    for (idx, c) in code.enumerate() {
+        if idx % 1_000_000 == 0 {
+            println!("I: {}", idx);
+        }
+
+        let mut computer = Computer::new();
+        computer.run(&commands, &c);
+        // dbg!(computer.z);
+        if computer.z == 0 {
+            println!("code {:?}", c);
+            break;
+        }
+    }
 
     let result_a = 0;
     let result_b = 0;
