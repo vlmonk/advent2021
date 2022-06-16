@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::Display};
 
 #[derive(Debug)]
 enum Reg {
@@ -20,6 +20,17 @@ impl Reg {
     }
 }
 
+impl Display for Reg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::W => write!(f, "w"),
+            Self::X => write!(f, "x"),
+            Self::Y => write!(f, "y"),
+            Self::Z => write!(f, "z"),
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Src {
     Reg(Reg),
@@ -31,6 +42,15 @@ impl Src {
         Reg::parse(input)
             .map(|r| Self::Reg(r))
             .or_else(|| input.parse::<i64>().ok().map(|value| Self::Value(value)))
+    }
+}
+
+impl Display for Src {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Reg(reg) => write!(f, "{}", reg),
+            Self::Value(val) => write!(f, "{}", val),
+        }
     }
 }
 
@@ -50,7 +70,6 @@ impl Op {
         let op = items.next()?;
         let reg = items.next().and_then(Reg::parse);
         let src = items.next().and_then(Src::parse);
-        // dbg!(op, &reg, &src);
 
         match op {
             "inp" => Some(Self::Inp(reg?)),
@@ -60,6 +79,19 @@ impl Op {
             "mod" => Some(Self::Mod(reg?, src?)),
             "eql" => Some(Self::Eql(reg?, src?)),
             _ => None,
+        }
+    }
+}
+
+impl Display for Op {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Inp(reg) => write!(f, "* inp {}", reg),
+            Self::Add(reg, src) => write!(f, "add {} {}", reg, src),
+            Self::Mul(reg, src) => write!(f, "mul {} {}", reg, src),
+            Self::Div(reg, src) => write!(f, "div {} {}", reg, src),
+            Self::Mod(reg, src) => write!(f, "mod {} {}", reg, src),
+            Self::Eql(reg, src) => write!(f, "eql {} {}", reg, src),
         }
     }
 }
@@ -128,6 +160,8 @@ impl Computer {
                     }
                 }
             }
+
+            println!("{:10} -> {}", format!("{}", op), self);
         }
     }
 
@@ -157,6 +191,16 @@ impl Computer {
     }
 }
 
+impl Display for Computer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[w: {} x: {} y: {} z: {}]",
+            self.w, self.x, self.y, self.z
+        )
+    }
+}
+
 pub struct Code {
     current: i64,
 }
@@ -164,6 +208,7 @@ pub struct Code {
 impl Code {
     pub fn new() -> Self {
         Self {
+            // current: 99_999_999_999_999,
             current: 99_999_999_999_999,
         }
     }
@@ -194,6 +239,10 @@ impl Iterator for Code {
                 }
             }
 
+            // if digits[13] != 7 {
+            //     continue;
+            // }
+
             return Some(digits);
         }
 
@@ -213,19 +262,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     // dbg!(&commands);
 
     let code = Code::new();
-    for (idx, c) in code.enumerate() {
-        if idx % 1_000_000 == 0 {
-            println!("I: {}", idx);
-        }
-
+    for i in [1, 2, 3, 4, 5, 6, 7, 8, 9] {
         let mut computer = Computer::new();
-        computer.run(&commands, &c);
-        // dbg!(computer.z);
-        if computer.z == 0 {
-            println!("code {:?}", c);
-            break;
-        }
+        computer.run(&commands, &[i, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4, 4]);
+
+        println!("{} -> {}", i, computer.z);
     }
+    // for (idx, c) in code.enumerate().take(65) {
+    //     if idx % 1_000_000 == 0 {
+    //         println!("I: {}", idx);
+    //     }
+
+    //     let mut computer = Computer::new();
+    //     computer.run(&commands, &c);
+    //     // dbg!(computer.z);
+    //     let i = c
+    //         .iter()
+    //         .map(|c| format!("{}", c))
+    //         .collect::<Vec<_>>()
+    //         .join("");
+
+    //     println!("{} -> {}", i, computer.z);
+
+    //     if computer.z == 0 {
+    //         println!("code {:?}", c);
+    //         break;
+    //     }
+    // }
 
     let result_a = 0;
     let result_b = 0;
