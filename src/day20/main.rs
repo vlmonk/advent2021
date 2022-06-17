@@ -40,6 +40,18 @@ impl BoundingBox {
         }
     }
 
+    fn from_points(points: &HashSet<(i32, i32)>) -> Option<Self> {
+        let mut result = None;
+        for (x, y) in points {
+            result = match result {
+                None => Some(BoundingBox::from_point(*x, *y)),
+                Some(bb) => Some(bb.extend(*x, *y)),
+            }
+        }
+
+        return result;
+    }
+
     fn from_point(x: i32, y: i32) -> Self {
         Self {
             xmin: x,
@@ -57,10 +69,16 @@ impl BoundingBox {
             ymax: if self.ymax > y { self.ymax } else { y },
         }
     }
+
+    fn within(&self, x: i32, y: i32) -> bool {
+        x >= self.xmin && x <= self.xmax && y >= self.ymin && y <= self.ymax
+    }
 }
 
 struct Field {
     points: HashSet<(i32, i32)>,
+    bb: Option<BoundingBox>,
+    fill: bool,
 }
 
 impl Field {
@@ -75,26 +93,18 @@ impl Field {
             });
         });
 
-        Self { points }
-    }
+        let bb = BoundingBox::from_points(&points);
 
-    fn bounding_box(&self) -> Option<BoundingBox> {
-        let mut result = None;
-        for (x, y) in &self.points {
-            result = match result {
-                None => Some(BoundingBox::from_point(*x, *y)),
-                Some(bb) => Some(bb.extend(*x, *y)),
-            }
+        Self {
+            points,
+            bb,
+            fill: false,
         }
-
-        return result;
     }
 
     fn rule_index(&self, x: i32, y: i32) -> usize {
         (y - 1..=y + 1)
-            .map(|y| {
-                (x - 1..=x + 1).map(move |x| if self.points.contains(&(x, y)) { 1 } else { 0 })
-            })
+            .map(|y| (x - 1..=x + 1).map(move |x| if self.get(x, y) { 1 } else { 0 }))
             .flatten()
             .enumerate()
             .map(|(idx, v)| v << (8 - idx))
@@ -103,9 +113,9 @@ impl Field {
 
     fn step(&self, rules: &Rules) -> Self {
         let mut points = HashSet::new();
-        if let Some(bb) = self.bounding_box() {
-            for y in bb.ymin - 1..=bb.ymax + 1 {
-                for x in bb.xmin - 1..=bb.xmax + 1 {
+        if let Some(bb) = &self.bb {
+            for y in (bb.ymin - 1)..=(bb.ymax + 1) {
+                for x in (bb.xmin - 1)..=(bb.xmax + 1) {
                     let idx = self.rule_index(x, y);
                     let z = rules.get(idx);
                     // dbg!(x, y, idx, z);
@@ -115,17 +125,39 @@ impl Field {
                 }
             }
         }
-        Self { points }
+        let bb = BoundingBox::from_points(&points);
+        let fill = if self.fill {
+            rules.get(511)
+        } else {
+            rules.get(0)
+        };
+
+        Self { points, bb, fill }
     }
 
     fn pixels(&self) -> usize {
         self.points.len()
     }
+
+    fn get(&self, x: i32, y: i32) -> bool {
+        let within = if let Some(bb) = &self.bb {
+            bb.within(x, y)
+        } else {
+            false
+        };
+
+        if within {
+            self.points.contains(&(x, y))
+        } else {
+            self.fill
+        }
+    }
 }
 
 impl std::fmt::Display for Field {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(bb) = self.bounding_box() {
+        if let Some(bb) = &self.bb {
+            write!(f, "fill: {}\n\n", if self.fill { "#" } else { "." })?;
             for y in bb.ymin..=bb.ymax {
                 for x in bb.xmin..=bb.xmax {
                     if self.points.contains(&(x, y)) {
@@ -149,8 +181,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rules = raw.next().map(Rules::new).ok_or("Invalid input")?;
     let field = raw.next().map(Field::new).ok_or("Invalid input")?;
 
+    println!("{}", field);
     let field = field.step(&rules);
+    println!("{}", field);
     let field = field.step(&rules);
+    // let field = field.step(&rules);
 
     let pixels = field.pixels();
 
@@ -179,7 +214,7 @@ mod test {
         let input = "#.#\n...\n#..";
         let field = Field::new(&input);
         let expected = Some(BoundingBox::new(0, 2, 0, 2));
-        assert_eq!(expected, field.bounding_box());
+        assert_eq!(expected, field.bb);
     }
 
     #[test]
