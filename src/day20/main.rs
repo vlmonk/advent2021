@@ -123,6 +123,25 @@ impl Field {
     }
 }
 
+impl std::fmt::Display for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(bb) = self.bounding_box() {
+            for y in bb.ymin..=bb.ymax {
+                for x in bb.xmin..=bb.xmax {
+                    if self.points.contains(&(x, y)) {
+                        write!(f, "#")?
+                    } else {
+                        write!(f, ".")?
+                    }
+                }
+
+                write!(f, "\n")?
+            }
+        }
+        Ok(())
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Missing input filename")?;
     let data = std::fs::read_to_string(filename)?;
@@ -135,6 +154,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let pixels = field.pixels();
 
+    println!("{}", field);
     println!("Result A: {}", pixels);
     Ok(())
 }
