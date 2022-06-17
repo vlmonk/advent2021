@@ -178,19 +178,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let filename = std::env::args().nth(1).ok_or("Missing input filename")?;
     let data = std::fs::read_to_string(filename)?;
     let mut raw = data.split("\n\n");
+
     let rules = raw.next().map(Rules::new).ok_or("Invalid input")?;
-    let field = raw.next().map(Field::new).ok_or("Invalid input")?;
+    let mut field = raw.next().map(Field::new).ok_or("Invalid input")?;
 
-    println!("{}", field);
-    let field = field.step(&rules);
-    println!("{}", field);
-    let field = field.step(&rules);
-    // let field = field.step(&rules);
+    (0..2).for_each(|_| field = field.step(&rules));
+    let pixels_a = field.pixels();
 
-    let pixels = field.pixels();
+    (0..48).for_each(|_| field = field.step(&rules));
+    let pixels_b = field.pixels();
 
-    println!("{}", field);
-    println!("Result A: {}", pixels);
+    println!("Result A: {}\nResult B: {}", pixels_a, pixels_b);
     Ok(())
 }
 
